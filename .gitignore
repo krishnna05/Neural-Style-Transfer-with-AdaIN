@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+.venv/
+venv/
+env/
+
+# Jupyter / notebooks
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyTorch / training artifacts
+*.pth
+*.pt
+*.ckpt
+*.bin
+experiment/
+checkpoints/
+logs/
+outputs/
+
+# Large data folders 
+content_data/
+style_data/
+
+.env
+.env.*
