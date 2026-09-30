@@ -1,16 +1,28 @@
 from torch.utils.data import Dataset
 import os
+import warnings
 from PIL import Image
 from torchvision import transforms
-
 
 class ImageFolderDataset(Dataset):
     def __init__(self, root, transform = None):
         super(ImageFolderDataset, self).__init__()
         self.root = root
         self.transform = transform
-        self.files = list(os.listdir(root))
-        self.files = [p for p in self.files if p.endswith(('.jpg', '.png', '.jpeg'))]
+        self.files = []
+        for filename in os.listdir(root):
+            if not filename.lower().endswith(('.jpg', '.png', '.jpeg')):
+                continue
+            image_path = os.path.join(root, filename)
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', Image.DecompressionBombWarning)
+                    with Image.open(image_path) as image:
+                        max_pixels = Image.MAX_IMAGE_PIXELS
+                        if max_pixels is None or image.width * image.height <= max_pixels:
+                            self.files.append(filename)
+            except Image.DecompressionBombError:
+                continue
 
     def __len__(self):
         return len(self.files)
@@ -23,7 +35,6 @@ class ImageFolderDataset(Dataset):
             image = self.transform(image)
 
         return image
-
 
 def get_transform(size, crop, final_size):
     transform_list = []

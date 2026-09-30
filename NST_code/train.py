@@ -1,57 +1,63 @@
 import argparse
-from pathlib import Path
-
 import torch
-import torch.optim as optim
 from torch.utils.data import DataLoader
+import torch.optim as optim
+from pathlib import Path
+from utils.utils import *
+from utils.models import *
 from tqdm import tqdm
-
-from utils.models import Decoder, VGGEncoder
-from utils.utils import (
-    ImageFolderDataset,
-    adaptive_instance_normalization,
-    calc_mean_std,
-    get_transform,
-)
-
+from torchvision.utils import save_image
 
 def parse_arguments():
-    base_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
 
-    parser.add_argument(
-        '--content_dir',
-        type=str,
-        default=str(base_dir / 'content_data'),
-        help='Location of content dataset',
-    )
-    parser.add_argument(
-        '--style_dir',
-        type=str,
-        default=str(base_dir / 'style_data'),
-        help='Location of style dataset',
-    )
-    parser.add_argument(
-        '--vgg',
-        type=str,
-        default=str(base_dir / 'vgg_normalised.pth'),
-        help='Location of pre-trained VGG',
-    )
-    parser.add_argument('--experiment', type=str, default='experiment1', help='Name of experiment')
-    parser.add_argument('--batch_size', type=int, default=4, help='Batch size')
-    parser.add_argument('--epochs', type=int, default=2, help='Number of training epochs')
-    parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('--lr_decay', type=float, default=1e-5, help='Learning rate decay')
-    parser.add_argument('--content_weight', type=float, default=1.0, help='Content loss weight')
-    parser.add_argument('--style_weight', type=float, default=1e4, help='Style loss weight')
-    parser.add_argument('--resume', action='store_true', default=False, help='Resume training')
-    parser.add_argument('--decoder_path', type=str, default=str(base_dir / 'decoder.pth'), help='Decoder checkpoint path')
-    parser.add_argument('--optimizer_path', type=str, default=str(base_dir / 'optimizer.pth'), help='Optimizer checkpoint path')
-
-    parser.add_argument('--final_size', type=int, default=256, help='Size of final image')
-    parser.add_argument('--content_size', type=int, default=512, help='Size of content image')
-    parser.add_argument('--style_size', type=int, default=512, help='Size of style image')
-    parser.add_argument('--crop', action='store_true', default=True, help='Crop image')
+    parser.add_argument('--content_dir', type=str, default=r'C:\Users\Krishna Vishwakarma\OneDrive\Desktop\AI-NST\NST_code\content_data',
+                        help='Location of content dataset')
+    parser.add_argument('--style_dir', type=str, default=r'C:\Users\Krishna Vishwakarma\OneDrive\Desktop\AI-NST\NST_code\style_data',
+                        help='Location of style dataset')
+    parser.add_argument('--vgg', type=str, default=r'C:\Users\Krishna Vishwakarma\OneDrive\Desktop\AI-NST\NST_code\vgg_normalised.pth',
+                        help='Location of pre-trained VGG')
+    parser.add_argument('--experiment', type=str, default='experiment1',
+                        help='Name of experiment')
+    
+    parser.add_argument('--final_size', type=int, default=256,
+                        help='Size of final image')
+    parser.add_argument('--content_size', type=int, default=512,
+                        help='Size of content image')
+    parser.add_argument('--style_size', type=int, default=512,
+                        help='Size of style image')
+    parser.add_argument('--crop', action='store_true', default=True,
+                        help='Crop image')
+    
+    parser.add_argument('--batch_size', type=int, default=4,
+                        help='Batch size')
+    parser.add_argument('--lr', type=float, default=1e-4,
+                        help='Learning rate')
+    parser.add_argument('--lr_decay', type=float, default=5e-5,
+                        help='Learning rate decay')
+    
+    parser.add_argument('--epochs', type=int, default=1,
+                        help='Number of epochs')
+    
+    parser.add_argument('--content_weight', type=float, default=1.0,
+                        help='Content weight')
+    parser.add_argument('--style_weight', type=float, default=5,
+                        help='Style weight')
+    
+    parser.add_argument('--log_interval', type=int, default=1,
+                        help='Log interval')
+    
+    parser.add_argument('--save_interval', type=int, default=2,
+                        help='Save interval')
+    
+    parser.add_argument('--resume', action='store_true', default=False,
+                        help='Resume training')
+    
+    parser.add_argument('--decoder_path', type=str, default=None,
+                        help='Path to decoder checkpoint')
+    
+    parser.add_argument('--optimizer_path', type=str, default=None,
+                        help='Path to optimizer checkpoint')
 
     return parser.parse_args()
 
@@ -71,14 +77,14 @@ def main():
     style_transform = get_transform(args.style_size, args.crop, args.final_size)
     
     content_dataset = ImageFolderDataset(args.content_dir, content_transform)
-    style_dataset = ImageFolderDataset(args.style_dir, style_transform)
+    style_dateset = ImageFolderDataset(args.style_dir, style_transform)
 
     content_dataloader = DataLoader(content_dataset,
                                     batch_size=args.batch_size,
                                     shuffle = True,
                                     pin_memory=True,
                                     drop_last=True)
-    style_dataloader = DataLoader(style_dataset,
+    style_dataloader = DataLoader(style_dateset,
                                   batch_size=args.batch_size,
                                   shuffle=True,
                                   pin_memory=True,
@@ -155,6 +161,21 @@ def main():
             running_sloss += loss_s.item()
         
         scheduler.step()
+
+        running_loss /= len(content_dataloader)
+        running_closs /= len(content_dataloader)
+        running_sloss /= len(content_dataloader)
+
+        if (epoch+1) % args.log_interval == 0:
+            tqdm.write(f'Iter {epoch+1}: Loss:{running_loss:4f}, Content Loss: {running_closs:4f}, Style Loss: {running_sloss:4f}')
+
+        if (epoch+1) % args.save_interval == 0:
+            torch.save(decoder.state_dict(), save_dir / f'decoder_{epoch+1}.pth')
+            torch.save(optimizer.state_dict(), save_dir / f'optimizer_{epoch+1}.pth')
+
+            with torch.no_grad():
+                output = torch.cat([content_batch, style_batch, g], dim=0)
+                save_image(output, save_dir / f'output_{epoch+1}.png', nrow=args.batch_size)
 
 if __name__ == '__main__':
     main()

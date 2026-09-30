@@ -24,14 +24,6 @@ Thumbs.db
 *.pt
 *.ckpt
 *.bin
-experiment/
-checkpoints/
-logs/
-outputs/
-
-# Large data folders 
-content_data/
-style_data/
 
 .env
 .env.*
